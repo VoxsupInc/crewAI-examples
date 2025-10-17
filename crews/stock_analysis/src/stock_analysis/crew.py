@@ -1,17 +1,49 @@
-from typing import List
-from crewai import Agent, Crew, Process, Task
+from crewai import Agent, Crew, LLM,Process, Task
 from crewai.project import CrewBase, agent, crew, task
 
 from tools.calculator_tool import CalculatorTool
-from tools.sec_tools import SEC10KTool, SEC10QTool
+from tools.sec_tools_simple import SEC10KTool, SEC10QTool
 
-from crewai_tools import WebsiteSearchTool, ScrapeWebsiteTool, TXTSearchTool
+from crewai_tools import ScrapeWebsiteTool
 
 from dotenv import load_dotenv
 load_dotenv()
 
-from langchain.llms import Ollama
-llm = Ollama(model="llama3.1")
+import os
+
+# Configure OpenTelemetry for Jaeger tracing
+if os.getenv('CREWAI_TRACING_ENABLED', 'false').lower() == 'true':
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk.resources import Resource
+    
+    # Set up the tracer provider with service name
+    resource = Resource(attributes={
+        "service.name": os.getenv('OTEL_SERVICE_NAME', 'stock-analysis-crew')
+    })
+    
+    tracer_provider = TracerProvider(resource=resource)
+    otlp_exporter = OTLPSpanExporter(
+        endpoint=os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://localhost:4317'),
+        insecure=True
+    )
+    span_processor = BatchSpanProcessor(otlp_exporter)
+    tracer_provider.add_span_processor(span_processor)
+    trace.set_tracer_provider(tracer_provider)
+    
+    # Instrument CrewAI for tracing
+    from openinference.instrumentation.crewai import CrewAIInstrumentor
+    CrewAIInstrumentor().instrument()
+
+
+llm = LLM(
+    model=f"bedrock/{os.getenv('AWS_BEDROCK_MODEL', 'us.anthropic.claude-sonnet-4-5-20250929-v1:0')}",
+    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+    aws_region_name=os.getenv('AWS_REGION', 'us-east-1')
+)
 
 @CrewBase
 class StockAnalysisCrew:
@@ -26,10 +58,9 @@ class StockAnalysisCrew:
             llm=llm,
             tools=[
                 ScrapeWebsiteTool(),
-                WebsiteSearchTool(),
-                CalculatorTool(),
-                SEC10QTool("AMZN"),
-                SEC10KTool("AMZN"),
+                CalculatorTool,
+                SEC10QTool,
+                SEC10KTool,
             ]
         )
     
@@ -49,9 +80,8 @@ class StockAnalysisCrew:
             llm=llm,
             tools=[
                 ScrapeWebsiteTool(),
-                # WebsiteSearchTool(), 
-                SEC10QTool("AMZN"),
-                SEC10KTool("AMZN"),
+                SEC10QTool,
+                SEC10KTool,
             ]
         )
     
@@ -70,10 +100,9 @@ class StockAnalysisCrew:
             llm=llm,
             tools=[
                 ScrapeWebsiteTool(),
-                WebsiteSearchTool(),
-                CalculatorTool(),
-                SEC10QTool(),
-                SEC10KTool(),
+                CalculatorTool,
+                SEC10QTool,
+                SEC10KTool,
             ]
         )
     
@@ -99,8 +128,7 @@ class StockAnalysisCrew:
             llm=llm,
             tools=[
                 ScrapeWebsiteTool(),
-                WebsiteSearchTool(),
-                CalculatorTool(),
+                CalculatorTool,
             ]
         )
 

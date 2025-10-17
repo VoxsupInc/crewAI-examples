@@ -10,6 +10,11 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "html2text>=2024.2.26",
     "sec-api>=1.0.20",
+    "boto3>=1.37.51",
+    "opentelemetry-api>=1.36.0",
+    "opentelemetry-sdk>=1.36.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.36.0",
+    "openinference-instrumentation-crewai>=0.1.14",
 ]
 
 [project.scripts]

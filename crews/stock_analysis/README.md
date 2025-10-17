@@ -4,102 +4,95 @@ This project is an example using the CrewAI framework to automate the process of
 
 By [@joaomdmoura](https://x.com/joaomdmoura)
 
-- [CrewAI Framework](#crewai-framework)
-- [Running the script](#running-the-script)
-- [Details & Explanation](#details--explanation)
-- [Using GPT 3.5](#using-gpt-35)
-- [Using Local Models with Ollama](#using-local-models-with-ollama)
-- [Contributing](#contributing)
-- [Support and Contact](#support-and-contact)
-- [License](#license)
+- [AI Crew for Stock Analysis](#ai-crew-for-stock-analysis)
+  - [Introduction](#introduction)
+  - [CrewAI Framework](#crewai-framework)
+  - [Running the Script](#running-the-script)
+  - [Details \& Explanation](#details--explanation)
+  - [Jaeger Tracing](#jaeger-tracing)
+    - [Running Jaeger Locally](#running-jaeger-locally)
+    - [Viewing Traces](#viewing-traces)
+  - [Using Different Models](#using-different-models)
+    - [Using Different Claude Models](#using-different-claude-models)
+    - [Cost Considerations](#cost-considerations)
+  - [License](#license)
 
 ## CrewAI Framework
 CrewAI is designed to facilitate the collaboration of role-playing AI agents. In this example, these agents work together to give a complete stock analysis and investment recommendation
 
 ## Running the Script
-It uses GPT-4 by default so you should have access to that to run it.
+This project uses AWS Bedrock with Claude models by default.
 
-***Disclaimer:** This will use gpt-4 unless you changed it 
-not to, and by doing so it will cost you money.*
+***Disclaimer:** This will use AWS Bedrock which will cost you money based on token usage.*
 
-- **Configure Environment**: Copy ``.env.example` and set up the environment variables for [Browseless](https://www.browserless.io/), [Serper](https://serper.dev/), [SEC-API](https://sec-api.io) and [OpenAI](https://platform.openai.com/api-keys)
-- **Install Dependencies**: Run `poetry install --no-root`.
-- **Execute the Script**: Run `poetry run python3 main.py`. (Note: execute from the directory containing main.pyy)
+- **Configure Environment**: Copy `.env.example` to `.env` and set up the environment variables:
+  - AWS credentials: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`
+  - Model selection: `AWS_BEDROCK_MODEL` (default: Claude Sonnet 4.5)
+  - [SEC-API](https://sec-api.io) key: `SEC_API_API_KEY`
+  - Tracing: `CREWAI_TRACING_ENABLED=true` (for Jaeger tracing)
+- **Install Dependencies**: Run `uv sync` (includes OpenTelemetry packages for Jaeger tracing).
+- **Execute the Script**: Run `uv run stock_analysis` or `uv run python src/stock_analysis/main.py`.
 
 ## Details & Explanation
-- **Running the Script**: Execute `python main.py`` and input the company to be analyzed when prompted. The script will leverage the CrewAI framework to analyze the company and generate a detailed report.
+- **Running the Script**: Execute `uv run python src/stock_analysis/main.py` and input the stock ticker to be analyzed when prompted. The script will leverage the CrewAI framework to analyze the company and generate a detailed report.
 - **Key Components**:
-  - `./main.py`: Main script file.
-  - `./stock_analysis_tasks.py`: Main file with the tasks prompts.
-  - `./stock_analysis_agents.py`: Main file with the agents creation.
-  - `./tools`: Contains tool classes used by the agents.
+  - `src/stock_analysis/main.py`: Main script file.
+  - `src/stock_analysis/crew.py`: Crew definition with agents and tasks.
+  - `src/stock_analysis/config/`: Configuration files for agents and tasks.
+  - `src/stock_analysis/tools/`: Contains tool classes used by the agents.
 
-## Using GPT 3.5
-CrewAI allow you to pass an llm argument to the agent construtor, that will be it's brain, so changing the agent to use GPT-3.5 instead of GPT-4 is as simple as passing that argument on the agent you want to use that LLM (in `main.py`).
-```python
-from langchain.chat_models import ChatOpenAI
+## Jaeger Tracing
 
-llm = ChatOpenAI(model='gpt-3.5') # Loading GPT-3.5
+This project is configured to export OpenTelemetry traces to Jaeger for observability and debugging.
 
-def local_expert(self):
-	return Agent(
-      role='The Best Financial Analyst',
-      goal="""Impress all customers with your financial data 
-      and market trends analysis""",
-      backstory="""The most seasoned financial analyst with 
-      lots of expertise in stock market analysis and investment
-      strategies that is working for a super important customer.""",
-      verbose=True,
-      llm=llm, # <----- passing our llm reference here
-      tools=[
-        BrowserTools.scrape_and_summarize_website,
-        SearchTools.search_internet,
-        CalculatorTools.calculate,
-        SECTools.search_10q,
-        SECTools.search_10k
-      ]
-    )
+### Running Jaeger Locally
+
+Start Jaeger using Docker:
+
+```bash
+docker run -d --name jaeger \
+  -p 4317:4317 \
+  -p 16686:16686 \
+  jaegertracing/all-in-one:latest
 ```
 
-## Using Local Models with Ollama
-The CrewAI framework supports integration with local models, such as Ollama, for enhanced flexibility and customization. This allows you to utilize your own models, which can be particularly useful for specialized tasks or data privacy concerns.
+This exposes:
+- **Port 4317**: OTLP gRPC endpoint (for receiving traces)
+- **Port 16686**: Jaeger UI (for viewing traces)
 
-### Setting Up Ollama
-- **Install Ollama**: Ensure that Ollama is properly installed in your environment. Follow the installation guide provided by Ollama for detailed instructions.
-- **Configure Ollama**: Set up Ollama to work with your local model. You will probably need to [tweak the model using a Modelfile](https://github.com/jmorganca/ollama/blob/main/docs/modelfile.md), I'd recommend adding `Observation` as a stop word and playing with `top_p` and `temperature`.
+### Viewing Traces
 
-### Integrating Ollama with CrewAI
-- Instantiate Ollama Model: Create an instance of the Ollama model. You can specify the model and the base URL during instantiation. For example:
+1. Run the stock analysis: `uv run python src/stock_analysis/main.py`
+2. Open the Jaeger UI: http://localhost:16686
+3. Select service: `stock-analysis-crew`
+4. Click "Find Traces" to view the execution flow
 
-```python
-from langchain.llms import Ollama
-ollama_openhermes = Ollama(model="openhermes")
-# Pass Ollama Model to Agents: When creating your agents within the CrewAI framework, you can pass the Ollama model as an argument to the Agent constructor. For instance:
+## Using Different Models
 
-def local_expert(self):
-	return Agent(
-      role='The Best Financial Analyst',
-      goal="""Impress all customers with your financial data 
-      and market trends analysis""",
-      backstory="""The most seasoned financial analyst with 
-      lots of expertise in stock market analysis and investment
-      strategies that is working for a super important customer.""",
-      verbose=True,
-      llm=ollama_openhermes, # Ollama model passed here
-      tools=[
-        BrowserTools.scrape_and_summarize_website,
-        SearchTools.search_internet,
-        CalculatorTools.calculate,
-        SECTools.search_10q,
-        SECTools.search_10k
-      ]
-    )
+This project is configured to use AWS Bedrock with Claude models. The LLM configuration is in `src/stock_analysis/crew.py`.
+
+### Using Different Claude Models
+
+To use a different Claude model, update the `AWS_BEDROCK_MODEL` environment variable in your `.env` file:
+
+```bash
+# Claude Sonnet 4.5 (default - most capable)
+AWS_BEDROCK_MODEL=us.anthropic.claude-sonnet-4-5-20250929-v1:0
+
+# Claude Haiku 4.5 (faster and cheaper)
+AWS_BEDROCK_MODEL=us.anthropic.claude-haiku-4-5-20251001-v1:0
+
+# Claude 3.5 Sonnet (previous generation)
+AWS_BEDROCK_MODEL=anthropic.claude-3-5-sonnet-20240620-v1:0
 ```
 
-### Advantages of Using Local Models
-- **Privacy**: Local models allow processing of data within your own infrastructure, ensuring data privacy.
-- **Customization**: You can customize the model to better suit the specific needs of your tasks.
-- **Performance**: Depending on your setup, local models can offer performance benefits, especially in terms of latency.
+### Cost Considerations
+
+AWS Bedrock pricing varies by model:
+- **Claude Sonnet 4.5**: ~$3/M input tokens, ~$15/M output tokens
+- **Claude Haiku 4.5**: ~$0.80/M input tokens, ~$4/M output tokens
+
+For development and testing, Claude Haiku 4.5 offers a good balance of performance and cost.
 
 ## License
 This project is released under the MIT License.
